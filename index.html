@@ -15,7 +15,7 @@
         .product-card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .product-title { font-weight: bold; font-size: 18px; color: #333; }
         .product-price { color: #db9600; font-weight: bold; margin: 5px 0 15px 0; }
-        .btn-pay { background-color: #6a1b9a; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; }
+        .btn-pay { background-color: #6a1b9a; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
         .btn-pay:hover { background-color: #4a148c; }
         #status-log { margin-top: 20px; font-size: 14px; color: #666; text-align: center; font-weight: bold; }
     </style>
@@ -32,7 +32,7 @@
         <div class="product-card">
             <div class="product-title">DannReal's Premium Branded Shoes</div>
             <div class="product-price">1.00 Pi (Testnet)</div>
-            <button class="btn-pay" onclick="buyProduct('Premium Shoes', 1.00)">Buy Now</button>
+            <button class="btn-pay" onclick="buyProduct('Premium Branded Shoes', 1.00)">Buy Now</button>
         </div>
 
         <!-- Product 2 -->
@@ -43,82 +43,61 @@
         </div>
     </div>
 
-    <div id="status-log">System Status: Waiting for connection...</div>
+    <div id="status-log">System Status: Waiting for Connection...</div>
 
-<script>
-    // I-initialize ang Pi SDK gamit ang bersyon 2.0
-    Pi.init({ version: "2.0" });
+    <script>
+        // 1. I-initialize ang Pi SDK gamit ang bersyong 2.0
+        Pi.init({ version: "2.0" });
 
-    // Link ng iyong live backend server sa Render
-    const SERVER_URL = "https://onrender.com"; 
-
-    // Function para sa Pagbili / Transaksyon
-    function buyProduct(memo, amount) {
-        document.getElementById('status-log').innerText = "Inihahanda ang pagbili para sa " + memo + "...";
-
-        Pi.createPayment({
-            amount: amount,
-            memo: "Order: " + memo,
-            metadata: { internalId: "order_" + Date.now() }
-        }, {
-            onReadyForServerApproval: function(paymentId) {
-                document.getElementById('status-log').innerText = "Payment Created. Inaaprubahan ng server...";
-                
-                fetch(`${SERVER_URL}/api/approve`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentId: paymentId })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if(data.success) {
-                        document.getElementById('status-log').innerText = "Na-approve na ng server! Pinoproseso sa Blockchain...";
-                    } else {
-                        document.getElementById('status-log').innerText = "Error sa Server Approval: " + data.error;
-                    }
-                });
-            },
-            onReadyForServerCompletion: function(paymentId, txid) {
-                document.getElementById('status-log').innerText = "Kumpleto na ang bayad sa Blockchain. Tinatapos ang transaksyon...";
-                
-                fetch(`${SERVER_URL}/api/complete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ paymentId: paymentId, txid: txid })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if(data.success) {
-                        document.getElementById('status-log').innerText = "Salamat! Matagumpay ang iyong pagbili.";
-                    } else {
-                        document.getElementById('status-log').innerText = "Error sa Server Completion: " + data.error;
-                    }
-                });
-            },
-            onCancel: function(paymentId) {
-                document.getElementById('status-log').innerText = "Inansela ng user ang transaksyon.";
-            },
-            onError: function(error, payment) {
-                document.getElementById('status-log').innerText = "Payment Error: " + error.message;
-            }
+        // Automatiko nating i-authenticate ang user pagkabukas ng app
+        Pi.authenticate(["username", "payments"], function onIncompletePaymentFound(payment) {
+            document.getElementById('status-log').innerText = "May nakitang hindi natapos na bayarin. Inaprubahan ng server...";
+            
+            fetch('https://onrender.com', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction.txid })
+            });
+        }).then(function(auth) {
+            document.getElementById('status-log').innerText = "Welcome, " + auth.user.username + "! Pi SDK Ready.";
+        }).catch(function(error) {
+            document.getElementById('status-log').innerText = "Security Alert: " + error.message;
         });
-    }
 
-    // Awtomatikong i-authenticate ang user pagkabukas ng app sa Pi Browser
-    Pi.authenticate(["username", "payments"], function onIncompletePaymentFound(payment) {
-        document.getElementById('status-log').innerText = "May nakitang hindi natapos na bayad. Inaayos...";
-        
-        fetch(`${SERVER_URL}/api/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction.txid })
-        });
-    }).then(function(auth) {
-        document.getElementById('status-log').innerText = "Welcome, " + auth.user.username + "! Pi SDK Ready.";
-    }).catch(function(error) {
-        document.getElementById('status-log').innerText = "Authentication Error: " + error.message;
-    });
-</script>
+        function buyProduct(name, amount) {
+            document.getElementById('status-log').innerText = "Inihahanda ang pagbili para sa " + name + "...";
 
+            Pi.createPayment({
+                amount: amount,
+                memo: "Order: " + name,
+                metadata: { internalId: "order_" + Date.now() }
+            }, {
+                onReadyForServerApproval: function(paymentId) {
+                    document.getElementById('status-log').innerText = "Payment Created. Inaaprubahan ng server...";
+                    
+                    fetch('https://onrender.com', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paymentId: paymentId })
+                    });
+                },
+                onReadyForServerCompletion: function(paymentId, txid) {
+                    document.getElementById('status-log').innerText = "Na-approve na ng server! Dine-deploy sa Blockchain...";
+                    
+                    fetch('https://onrender.com', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paymentId: paymentId, txid: txid })
+                    });
+                },
+                onCancel: function(paymentId) {
+                    document.getElementById('status-log').innerText = "Kinansela ang transaksyon.";
+                },
+                onError: function(error, payment) {
+                    document.getElementById('status-log').innerText = "Error sa pagpoproseso: " + error.message;
+                }
+            });
+        }
+    </script>
 </body>
 </html>
