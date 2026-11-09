@@ -14,7 +14,7 @@ app.post('/api/approve', async (req, res) => {
     const { paymentId } = req.body;
     try {
         const response = await axios.post(
-            `https://minepi.com{paymentId}/approve`,
+            'https://api.minepi.com/v2/payments/${paymentId}/approve',,
             {},
             { headers: { Authorization: `Key ${PI_API_KEY}` } }
         );
@@ -30,7 +30,7 @@ app.post('/api/complete', async (req, res) => {
     const { paymentId, txid } = req.body;
     try {
         const response = await axios.post(
-            `https://minepi.com{paymentId}/complete`,
+            'https://api.minepi.com/v2/payments/${paymentId}/complete',,
             { txid: txid },
             { headers: { Authorization: `Key ${PI_API_KEY}` } }
         );
