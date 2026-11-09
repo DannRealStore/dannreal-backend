@@ -7,7 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 // Ang iyong opisyal at permanenteng Pi API Key
-const PI_API_KEY = "xlnuu2hjhvxrxrmnf1537y15lyr1s6d7b21kexxoxszdwh38w6x20jrygflh4q5f";
+const PI_API_KEY = process.env.PI_API_KEY;
 
 // 1. Endpoint para sa Server Approval
 app.post('/api/approve', async (req, res) => {
