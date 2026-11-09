@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DannReal's Store</title>
-    <!-- I-load ang Opisyal na Pi Network SDK Script -->
-    <script src="https://minepi.com"></script>
+    <!-- TAMA NA SDK -->
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; text-align: center; }
         .header { margin-bottom: 30px; }
@@ -17,7 +17,8 @@
         .product-price { color: #e67e22; font-size: 1.2em; font-weight: bold; margin-bottom: 15px; }
         .btn-pay { background-color: #8a3ab9; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; width: 100%; transition: background 0.3s; }
         .btn-pay:hover { background-color: #6d2d93; }
-        #status-log { margin-top: 20px; padding: 15px; background: #eef7f4; border-radius: 8px; font-family: monospace; display: inline-block; max-width: 600px; text-align: left; border: 1px solid #c2e2d6; font-size: 0.9em; }
+        .btn-login { background-color: #0f3d2f; color: white; border: none; padding: 12px 25px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; margin-top: 15px; }
+        #status-log { margin-top: 20px; padding: 15px; background: #eef7f4; border-radius: 8px; font-family: monospace; display: inline-block; max-width: 600px; text-align: left; border: 1px solid #c2e2d6; font-size: 0.9em; white-space: pre-line; }
     </style>
 </head>
 <body>
@@ -25,17 +26,16 @@
     <div class="header">
         <h1>DannReal's Store</h1>
         <p class="tagline">Your Trusted Web3 Pi Network Shop</p>
+        <button class="btn-login" id="loginBtn" onclick="login()">Login with Pi</button>
+        <div id="userInfo"></div>
     </div>
 
     <div class="container">
-        <!-- Unang Produkto -->
         <div class="product-card">
             <div class="product-title">Premium Sports Shoes</div>
             <div class="product-price">3.14 Pi</div>
             <button class="btn-pay" onclick="buyProduct('Premium Sports Shoes', 3.14)">Buy Now</button>
         </div>
-
-        <!-- Pangalawang Produkto -->
         <div class="product-card">
             <div class="product-title">Sports Polo Shirt</div>
             <div class="product-price">1.00 Pi</div>
@@ -47,12 +47,44 @@
     <div id="status-log">Inihahanda ang Pi SDK...</div>
 
     <script>
-        // Link ng iyong live backend server sa Render
         const SERVER_URL = "https://dannreal-backend.onrender.com";
+        let currentUser = null;
 
-        // Function para sa Pagbili / Transaksyon
-        function buyProduct(memo, amount) {
-            document.getElementById('status-log').innerText = "Inihahanda ang pagbili para sa: " + memo + "...";
+        function setLog(msg) {
+            document.getElementById('status-log').innerText = msg;
+        }
+
+        // Kailangan ito para sa mga hindi natapos na payment
+        function onIncompletePaymentFound(payment) {
+            console.log("Incomplete payment:", payment);
+            fetch(`${SERVER_URL}/api/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: payment.identifier, txid: payment.transaction.txid })
+            });
+        }
+
+        async function login() {
+            try {
+                setLog("Nagbubukas ng Pi Login...");
+                const auth = await Pi.authenticate(['username', 'payments'], onIncompletePaymentFound);
+                currentUser = auth.user;
+                document.getElementById('userInfo').innerText = "Welcome, @" + currentUser.username + "!";
+                document.getElementById('loginBtn').style.display = 'none';
+                setLog("Welcome, " + currentUser.username + "!\nPi SDK Ready. Pwede ka na bumili.");
+            } catch (err) {
+                setLog("Auth Error: " + (err.message || JSON.stringify(err)));
+            }
+        }
+
+        async function buyProduct(memo, amount) {
+            if (!currentUser) {
+                setLog("Mag-login ka muna sa Pi bago bumili.");
+                await login();
+                if (!currentUser) return;
+            }
+
+            setLog("Inihahanda ang pagbili para sa: " + memo + "...");
             
             Pi.createPayment({
                 amount: amount,
@@ -60,8 +92,7 @@
                 metadata: { internalId: "order_" + Date.now() }
             }, {
                 onReadyForServerApproval: function(paymentId) {
-                    document.getElementById('status-log').innerText = "Payment Created! ID: " + paymentId + "\nInaprubahan ng Server...";
-                    
+                    setLog("Payment Created! ID: " + paymentId + "\nInaprubahan ng Server...");
                     fetch(`${SERVER_URL}/api/approve`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -70,15 +101,14 @@
                     .then(res => res.json())
                     .then(data => {
                         if(data.success) {
-                            document.getElementById('status-log').innerText = "Server Approved! Waiting for blockchain confirmation...";
+                            setLog("Server Approved! Waiting for blockchain confirmation...");
                         } else {
-                            document.getElementById('status-log').innerText = "Approval Failed: " + JSON.stringify(data.error);
+                            setLog("Approval Failed: " + JSON.stringify(data.error));
                         }
                     });
                 },
                 onReadyForServerCompletion: function(paymentId, txid) {
-                    document.getElementById('status-log').innerText = "Payment Confirmed on Chain! TxID: " + txid + "\nTinutuloy ang Transaksyon...";
-                    
+                    setLog("Payment Confirmed on Chain! TxID: " + txid + "\nTinutuloy ang Transaksyon...");
                     fetch(`${SERVER_URL}/api/complete`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -87,28 +117,30 @@
                     .then(res => res.json())
                     .then(data => {
                         if(data.success) {
-                            document.getElementById('status-log').innerText = "SUCCESS! Transaksyon Kumpleto! Salamat sa pagbili.";
+                            setLog("SUCCESS! Transaksyon Kumpleto! Salamat sa pagbili.");
                         } else {
-                            document.getElementById('status-log').innerText = "Completion Failed: " + JSON.stringify(data.error);
+                            setLog("Completion Failed: " + JSON.stringify(data.error));
                         }
                     });
                 },
                 onCancel: function(paymentId) {
-                    document.getElementById('status-log').innerText = "Kanselado ang transaksyon ng user.";
+                    setLog("Kanselado ang transaksyon ng user.");
                 },
                 onError: function(error, payment) {
-                    document.getElementById('status-log').innerText = "Blockchain Error: " + error.message;
+                    setLog("Blockchain Error: " + error.message);
                 }
             });
         }
 
-        // I-initialize ang Pi SDK gamit ang bersyon 2.0
-        Pi.init({ version: "2.0" });
-        Pi.authenticate(['username'], function(auth) {
-            document.getElementById('status-log').innerText = "Welcome, " + auth.user.username + "!\nPi SDK Ready.";
-        }, function(error) {
-            document.getElementById('status-log').innerText = "Auth Error: " + error.message;
-        });
+        // INIT - sandbox:true muna habang test
+        window.onload = function() {
+            if (typeof Pi === 'undefined') {
+                setLog("ERROR: Pi SDK hindi nag-load. Buksan mo lang ito sa Pi Browser.");
+                return;
+            }
+            Pi.init({ version: "2.0", sandbox: true });
+            setLog("Pi SDK Loaded. Pindutin ang Login with Pi.");
+        };
     </script>
 </body>
 </html>
